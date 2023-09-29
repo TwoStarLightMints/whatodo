@@ -7,7 +7,7 @@
 // whatodo remove done | Deletes all todos that are marked as completed
 // whatodo remove todos | Deletes all todos that are not completed
 // whatodo remove all | Deletes all todos from the current list
-// whatodo new list | Creates new list in current directory
+// whatodo init | Creates new list in current directory
 
 use std::{
     fs::File,
