@@ -32,8 +32,15 @@ impl Todo {
         }
     }
 
-    fn complete(&mut self) {
-        self.complete = true;
+    fn to_string(&self) -> String {
+        format!(
+            "{}|{}",
+            match self.complete {
+                true => 1,
+                false => 0,
+            },
+            self.contents
+        )
     }
 }
 
@@ -47,7 +54,12 @@ impl fmt::Display for Todo {
     }
 }
 
-fn load_todos(todo_string: String) -> Vec<Todo> {
+fn load_todos() -> Vec<Todo> {
+    let mut itf = File::open("todos.txt").unwrap(); // Open the todo file for processing
+    let mut todo_string = String::new();
+
+    itf.read_to_string(&mut todo_string).unwrap(); // Get all of the todos from the file
+
     // Loads todos read in from file
     todo_string
         .split('\n') // All todos will be separated by a newline character
@@ -81,86 +93,88 @@ fn read_todos() -> Result<String, Error> {
     }
 }
 
-// fn main_loop(args: &[String]) {
-//     let todos_list = load_todos(read_todos().unwrap());
-// }
+fn init_new_list() -> Result<(), Error> {
+    File::create("todos.txt")?;
+    Ok(())
+}
+
+fn checkout_list(option: &str, todos_list: &Vec<Todo>) {
+    if option == "all" {
+        for todo in todos_list {
+            println!("{}", todo);
+        }
+    } else if option == "done" {
+        for todo in todos_list.iter().filter(|e| e.complete) {
+            println!("{}", todo);
+        }
+    } else if option == "todo" {
+        for todo in todos_list.iter().filter(|e| !e.complete) {
+            println!("{}", todo);
+        }
+    }
+}
+
+fn remove_from_list(option: &str, mut todos_list: Vec<Todo>) -> Vec<Todo> {
+    // This branch involves all functionality with removing todos
+    match option.parse::<usize>() {
+        Ok(num) => {
+            todos_list.remove(num - 1);
+            todos_list
+        }
+        Err(_) => {
+            if option == "all" {
+                todos_list.clear();
+                todos_list
+            } else if option == "done" {
+                todos_list.into_iter().filter(|e| !e.complete).collect()
+            } else if option == "todo" {
+                todos_list.into_iter().filter(|e| e.complete).collect()
+            } else {
+                todos_list
+            }
+        }
+    }
+}
+
+fn save_todos(todos_list: Vec<Todo>) {
+    let mut otf = File::create("todos.txt").unwrap();
+
+    for todo in todos_list {
+        otf.write(todo.to_string().as_bytes()).unwrap();
+    }
+}
 
 fn main() {
     let env_args: Vec<String> = env::args().collect();
     let args = &env_args[1..]; // Get arguments and collect all necessary for operation of the program
 
-    if args[0] == "init" {
-        // If user has not created a todo, create it
-        let mut _new_f = File::create("todos.txt").unwrap();
-
-        _new_f.write("".as_bytes()).unwrap();
+    if args.len() == 0 {
+        println!("Display help");
     } else {
-        let mut itf = File::open("todos.txt").unwrap(); // Open the todo file for processing
-        let mut buf = String::new();
+        if args[0] == "init" {
+            // If user has not created a todo, create it
+            init_new_list().unwrap();
+        } else {
+            let mut todos_list: Vec<Todo> = load_todos();
 
-        itf.read_to_string(&mut buf).unwrap(); // Get all of the todos from the file
-
-        let mut todos_list: Vec<Todo> = load_todos(buf);
-
-        if args[0] == "checkout" {
-            // This branch involves all functionality for viewing todos
-            if args[1] == "all" {
-                for todo in &todos_list {
-                    println!("{}", todo);
-                }
-            } else if args[1] == "done" {
-                for todo in todos_list.iter().filter(|e| e.complete) {
-                    println!("{}", todo);
-                }
-            } else if args[1] == "todo" {
-                for todo in todos_list.iter().filter(|e| !e.complete) {
-                    println!("{}", todo);
-                }
-            }
-        } else if args[0] == "add" {
-            // This branch involves all functionality for adding todos
-            todos_list.push(Todo::new(None, String::from(args[1].clone())));
-        } else if args[0] == "complete" {
-            // This branch involves all functionality with completing todos
-            match args[1].parse::<usize>() {
-                Ok(num) => {
-                    todos_list[num - 1].complete();
-                }
-                Err(_) => println!("Invalid index given"),
-            }
-        } else if args[0] == "remove" {
-            // This branch involves all functionality with removing todos
-            match args[1].parse::<usize>() {
-                Ok(num) => {
-                    todos_list.remove(num - 1);
-                }
-                Err(_) => {
-                    if args[1] == "all" {
-                        todos_list.clear();
-                    } else if args[1] == "done" {
-                        todos_list = todos_list.into_iter().filter(|e| !e.complete).collect();
-                    } else if args[1] == "todo" {
-                        todos_list = todos_list.into_iter().filter(|e| e.complete).collect();
+            if args[0] == "checkout" {
+                checkout_list(args[1].as_str(), &todos_list);
+            } else if args[0] == "add" {
+                // This branch involves all functionality for adding todos
+                todos_list.push(Todo::new(None, String::from(args[1].clone())));
+            } else if args[0] == "complete" {
+                // This branch involves all functionality with completing todos
+                match args[1].parse::<usize>() {
+                    Ok(num) => {
+                        todos_list[num - 1].complete = true;
                     }
+                    Err(_) => println!("Invalid index given"),
                 }
+            } else if args[0] == "remove" {
+                todos_list = remove_from_list(args[1].as_str(), todos_list);
             }
-        }
 
-        let mut otf = File::create("todos.txt").unwrap();
-
-        for todo in todos_list {
-            otf.write(
-                format!(
-                    "{}|{}\n",
-                    match todo.complete {
-                        true => "1",
-                        false => "0",
-                    },
-                    todo.contents
-                )
-                .as_bytes(),
-            )
-            .unwrap();
+            save_todos(todos_list);
         }
     }
 
