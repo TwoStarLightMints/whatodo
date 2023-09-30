@@ -15,6 +15,7 @@ use std::{
     {env, fmt},
 };
 
+#[derive(Debug)]
 struct Todo {
     complete: bool,
     contents: String,
@@ -41,6 +42,12 @@ impl Todo {
             },
             self.contents
         )
+    }
+}
+
+impl PartialEq for Todo {
+    fn eq(&self, other: &Self) -> bool {
+        self.contents == other.contents
     }
 }
 
@@ -160,7 +167,12 @@ fn main() {
             checkout_list(value.as_str(), &todos_list);
         } else if command == "add" {
             // This branch involves all functionality for adding todos
-            todos_list.push(Todo::new(None, String::from(value.clone())));
+            let new_todo = Todo::new(None, String::from(value.clone()));
+            if !todos_list.contains(&new_todo) {
+                todos_list.push(new_todo);
+            } else {
+                println!("Todo is already in the list")
+            }
             save_todos(todos_list);
         } else if command == "complete" {
             // This branch involves all functionality with completing todos
