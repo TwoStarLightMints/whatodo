@@ -119,7 +119,8 @@ fn save_todos(todos_list: Vec<Todo>) {
     let mut otf = File::create("todos.txt").unwrap();
 
     for todo in todos_list {
-        otf.write(todo.to_string().as_bytes()).unwrap();
+        otf.write(format!("{}\n", todo.to_string()).as_bytes())
+            .unwrap();
     }
 }
 
