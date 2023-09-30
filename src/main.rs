@@ -72,27 +72,6 @@ fn load_todos() -> Vec<Todo> {
         .collect()
 }
 
-fn read_todos() -> Result<String, Error> {
-    // Called by load_todos
-    // Open todo file for retrieving previous todos
-    let itf = File::open(format!(
-        "{}{}",
-        env::current_dir().unwrap().to_str().unwrap(),
-        "todos.txt"
-    )); // I do not check the return here so that I can send an empty string for use during runtime, later a new file will be created
-
-    match itf {
-        Ok(mut f) => {
-            let mut buf = String::new();
-
-            f.read_to_string(&mut buf)?;
-
-            Ok(buf)
-        }
-        Err(_) => Ok(String::from("")),
-    }
-}
-
 fn init_new_list() -> Result<(), Error> {
     File::create("todos.txt")?;
     Ok(())
