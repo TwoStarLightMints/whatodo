@@ -19,6 +19,7 @@ use std::{
 struct Todo {
     complete: bool,
     contents: String,
+    sub_todos: Vec<Todo>,
 }
 
 impl Todo {
@@ -30,23 +31,49 @@ impl Todo {
                 None => false,
             },
             contents,
+            sub_todos: Vec::new(),
         }
     }
 
     fn to_string(&self) -> String {
-        format!(
-            "{}|{}",
-            match self.complete {
-                true => 1,
-                false => 0,
-            },
-            self.contents
-        )
+        // Generally used for serialization
+        if self.sub_todos.len() == 0 {
+            format!(
+                "{}|{}",
+                match self.complete {
+                    true => 1,
+                    false => 0,
+                },
+                self.contents
+            )
+        } else {
+            let mut str_repr = vec![format!(
+                "{}|{}",
+                match self.complete {
+                    true => 1,
+                    false => 0,
+                },
+                self.contents
+            )];
+
+            for child in self.sub_todos.iter() {
+                let child_string = child
+                    .to_string()
+                    .split("\n")
+                    .map(|e| e.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n-");
+                str_repr.push(format!("-{child_string}"));
+            }
+
+            str_repr.join("\n")
+        }
     }
 }
 
 impl PartialEq for Todo {
     fn eq(&self, other: &Self) -> bool {
+        // The sub todos will be the same generally speaking
         self.contents == other.contents
     }
 }
