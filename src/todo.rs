@@ -1,6 +1,3 @@
-use std::fs::File;
-use std::io::{Read, Write};
-
 // Separate full todos, not Todos within sub_todos field
 
 // New line == new todo
@@ -8,19 +5,77 @@ use std::io::{Read, Write};
 // sub_todos array begin represented by [ and end by ]
 // Separate todos in sub_todos array separated by ,
 
+use std::fmt;
+
 #[derive(Debug)]
-struct Todo {
-    complete: bool,
-    contents: String,
-    sub_todos: Vec<Todo>,
+pub struct Todo {
+    pub complete: bool,
+    pub contents: String,
+    pub sub_todos: Vec<Todo>,
 }
 
 impl Todo {
-    fn new() -> Self {
+    pub fn new(complete: Option<bool>, contents: String) -> Self {
+        // Takes an option to allow for loading from file
         Self {
-            complete: false,
-            contents: "".to_string(),
+            complete: match complete {
+                Some(b) => b,
+                None => false,
+            },
+            contents,
             sub_todos: Vec::new(),
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        // Generally used for serialization
+        if self.sub_todos.len() == 0 {
+            format!(
+                "{}|{}",
+                match self.complete {
+                    true => 1,
+                    false => 0,
+                },
+                self.contents
+            )
+        } else {
+            let mut str_repr = vec![format!(
+                "{}|{}",
+                match self.complete {
+                    true => 1,
+                    false => 0,
+                },
+                self.contents
+            )];
+
+            for child in self.sub_todos.iter() {
+                let child_string = child
+                    .to_string()
+                    .split("\n")
+                    .map(|e| e.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n-");
+                str_repr.push(format!("-{child_string}"));
+            }
+
+            str_repr.join("\n")
+        }
+    }
+}
+
+impl PartialEq for Todo {
+    fn eq(&self, other: &Self) -> bool {
+        // The sub todos will be the same generally speaking
+        self.contents == other.contents
+    }
+}
+
+impl fmt::Display for Todo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.complete {
+            write!(f, "[X] - {}", self.contents)
+        } else {
+            write!(f, "[ ] - {}", self.contents)
         }
     }
 }
@@ -57,7 +112,7 @@ fn to_string_todo(todo: &Todo) -> String {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum TodoTokens {
     FieldSeparator, // |
     TodoArrBeg,     // [
@@ -113,39 +168,97 @@ fn tokenize_todo_string(todo_str: &String) -> Vec<TodoTokens> {
     tokens
 }
 
-fn todo_from_tokens(tokens: Vec<TodoTokens>) -> Todo {}
+fn todo_from_tokens(tokens: Vec<TodoTokens>) -> Todo {
+    Todo::new(Some(false), "".to_string())
+}
 
+// Format of Todo with no sub_todos: TodoValue, FieldSeparator, TodoValue, FieldSeparator
+// Format of Todo with sub_todos: TodoValue, FieldSeparator, TodoValue, FieldSeparator, TodoArrBeg, ..., TodoArrEnd
 fn from_todo_string(todo_str: String) -> Todo {
-    let mut raw_tokens = tokenize_todo_string(&todo_str);
+    let raw_tokens = tokenize_todo_string(&todo_str);
+    let num_tokens = raw_tokens.iter().count();
     let mut tokens = raw_tokens.iter();
 
-    let mut root = Todo::new();
+    if num_tokens == 4 {
+        let mut todo = Todo::new(None, "".to_string());
 
-    if let Some(complete) = tokens.by_ref().next() {
-        if let TodoTokens::TodoValue(val) = complete {
-            root.complete = match val.as_str() {
+        if let Some(TodoTokens::TodoValue(complete_field)) = tokens.by_ref().next() {
+            todo.complete = match complete_field.as_str() {
                 "0" => false,
                 "1" => true,
                 _ => unreachable!(),
             };
         }
-    }
 
-    tokens.by_ref().next(); // Skip field separator
+        tokens.by_ref().next(); // This will be a field separator, so ignore
 
-    if let Some(contents) = tokens.by_ref().next() {
-        if let TodoTokens::TodoValue(val) = contents {
-            root.contents = val.clone();
+        if let Some(TodoTokens::TodoValue(contents_field)) = tokens.next() {
+            todo.contents = contents_field.clone();
+        };
+
+        todo
+    } else {
+        let mut root = Todo::new(Some(false), "".to_string());
+
+        if let Some(complete) = tokens.by_ref().next() {
+            if let TodoTokens::TodoValue(val) = complete {
+                root.complete = match val.as_str() {
+                    "0" => false,
+                    "1" => true,
+                    _ => unreachable!(),
+                };
+            }
+        }
+
+        tokens.by_ref().next(); // Skip field separator
+
+        if let Some(contents) = tokens.by_ref().next() {
+            if let TodoTokens::TodoValue(val) = contents {
+                root.contents = val.clone();
+            }
+        }
+
+        let children = todo_from_tokens(tokens.map(|e| e.clone()).collect::<Vec<TodoTokens>>());
+
+        println!("{root:?}");
+
+        Todo {
+            complete: false,
+            contents: "".to_string(),
+            sub_todos: Vec::new(),
         }
     }
+}
 
-    let child = todo_from_tokens(tokens.collect::<Vec<TodoTokens>>());
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    println!("{root:?}");
+    #[test]
+    fn test_from_todo_string_no_sub_todos() {
+        assert_eq!(
+            Todo {
+                complete: false,
+                contents: "Empty".to_string(),
+                sub_todos: Vec::new()
+            },
+            from_todo_string("0|Empty|".to_string())
+        );
+    }
 
-    Todo {
-        complete: false,
-        contents: "".to_string(),
-        sub_todos: Vec::new(),
+    #[test]
+    fn test_from_todo_string_w_sub_todos() {
+        assert_eq!(
+            Todo {
+                complete: false,
+                contents: "One sub".to_string(),
+                sub_todos: vec![Todo {
+                    complete: true,
+                    contents: "This is a sub_todo".to_string(),
+                    sub_todos: Vec::new()
+                }]
+            },
+            from_todo_string("0|One sub|[1|This is a sub_todo|]".to_string())
+        );
     }
 }
