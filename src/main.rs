@@ -10,83 +10,12 @@
 // whatodo init | Creates new list in current directory
 
 use std::{
+    env,
     fs::File,
     io::{Error, Read, Write},
-    {env, fmt},
 };
 
-#[derive(Debug)]
-struct Todo {
-    complete: bool,
-    contents: String,
-    sub_todos: Vec<Todo>,
-}
-
-impl Todo {
-    fn new(complete: Option<bool>, contents: String) -> Self {
-        // Takes an option to allow for loading from file
-        Self {
-            complete: match complete {
-                Some(b) => b,
-                None => false,
-            },
-            contents,
-            sub_todos: Vec::new(),
-        }
-    }
-
-    fn to_string(&self) -> String {
-        // Generally used for serialization
-        if self.sub_todos.len() == 0 {
-            format!(
-                "{}|{}",
-                match self.complete {
-                    true => 1,
-                    false => 0,
-                },
-                self.contents
-            )
-        } else {
-            let mut str_repr = vec![format!(
-                "{}|{}",
-                match self.complete {
-                    true => 1,
-                    false => 0,
-                },
-                self.contents
-            )];
-
-            for child in self.sub_todos.iter() {
-                let child_string = child
-                    .to_string()
-                    .split("\n")
-                    .map(|e| e.to_string())
-                    .collect::<Vec<_>>()
-                    .join("\n-");
-                str_repr.push(format!("-{child_string}"));
-            }
-
-            str_repr.join("\n")
-        }
-    }
-}
-
-impl PartialEq for Todo {
-    fn eq(&self, other: &Self) -> bool {
-        // The sub todos will be the same generally speaking
-        self.contents == other.contents
-    }
-}
-
-impl fmt::Display for Todo {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.complete {
-            write!(f, "[X] - {}", self.contents)
-        } else {
-            write!(f, "[ ] - {}", self.contents)
-        }
-    }
-}
+use whatodo::todo::Todo;
 
 fn load_todos() -> Vec<Todo> {
     let mut itf = File::open("todos.txt").unwrap(); // Open the todo file for processing
