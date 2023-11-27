@@ -298,6 +298,24 @@ mod tests {
     }
 
     #[test]
+    fn from_todo_to_string_w_nested_sub_todos() {
+        let mut example = Todo::new(Some(false), "Something".to_string());
+
+        example
+            .sub_todos
+            .push(Todo::new(Some(true), "This is a test".to_string()));
+
+        example.sub_todos[0]
+            .sub_todos
+            .push(Todo::new(Some(false), "This is a nested test".to_string()));
+
+        assert_eq!(
+            "[ ] - Something\n- [X] - This is a test\n- - [ ] - This is a nested test",
+            example.to_string()
+        );
+    }
+
+    #[test]
     fn from_todo_to_todos_no_sub_todos() {
         let example = Todo::new(Some(false), "Something".to_string());
         assert_eq!("0|Something|", example.to_todos());
