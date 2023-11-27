@@ -15,28 +15,26 @@ use std::{
     io::{Error, Read, Write},
 };
 
-use whatodo::todo::Todo;
+use whatodo::todo::{from_todo_string, Todo};
 
 fn load_todos() -> Vec<Todo> {
-    let mut itf = File::open("todos.txt").unwrap(); // Open the todo file for processing
+    let mut itf = File::open("todo.todos").unwrap(); // Open the todo file for processing
     let mut todo_string = String::new();
 
     itf.read_to_string(&mut todo_string).unwrap(); // Get all of the todos from the file
 
+    let mut todos: Vec<Todo> = Vec::new();
+
     // Loads todos read in from file
-    todo_string
-        .split('\n') // All todos will be separated by a newline character
-        .filter(|e| !e.is_empty()) // Get all non-empty todos from todos.txt
-        .map(|e| e.split('|')) // The separator from complete and contents is the pipe character
-        .map(|e| {
-            let e_strs: Vec<&str> = e.collect();
-            Todo::new(Some(e_strs[0] == "1"), String::from(e_strs[1].trim()))
-        })
-        .collect()
+    for str in todo_string.split("\n").into_iter() {
+        todos.push(from_todo_string(str.to_string()));
+    }
+
+    todos
 }
 
 fn init_new_list() -> Result<(), Error> {
-    File::create("todos.txt")?;
+    File::create("todo.todos")?;
     Ok(())
 }
 
@@ -79,11 +77,10 @@ fn remove_from_list(option: &str, mut todos_list: Vec<Todo>) -> Vec<Todo> {
 }
 
 fn save_todos(todos_list: Vec<Todo>) {
-    let mut otf = File::create("todos.txt").unwrap();
+    let mut otf = File::create("todo.todos").unwrap();
 
     for todo in todos_list {
-        otf.write(format!("{}\n", todo.to_string()).as_bytes())
-            .unwrap();
+        otf.write(todo.to_todos().as_bytes()).unwrap();
     }
 }
 
