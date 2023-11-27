@@ -83,14 +83,15 @@ impl Todo {
             )];
 
             for child in self.sub_todos.iter() {
-                let child_string = child
-                    .to_string()
+                let child_string = child.to_string();
+
+                let complete = child_string
                     .split("\n")
                     .map(|e| e.to_string())
                     .collect::<Vec<_>>()
-                    .join("\n");
+                    .join("\n- ");
 
-                res.push(format!("- {child_string}"));
+                res.push(format!("- {complete}"));
             }
 
             res.join("\n")
