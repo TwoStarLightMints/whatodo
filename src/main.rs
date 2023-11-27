@@ -23,8 +23,6 @@ fn load_todos() -> Vec<Todo> {
 
     itf.read_to_string(&mut todo_string).unwrap(); // Get all of the todos from the file
 
-    println!("{todo_string}");
-
     let mut todos: Vec<Todo> = Vec::new();
 
     if todo_string.is_empty() {
