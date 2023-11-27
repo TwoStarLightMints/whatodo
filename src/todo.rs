@@ -268,7 +268,7 @@ fn todo_from_tokens(tokens: Vec<TodoTokens>) -> Todo {
 
 // Format of Todo with no sub_todos: TodoValue, FieldSeparator, TodoValue, FieldSeparator
 // Format of Todo with sub_todos: TodoValue, FieldSeparator, TodoValue, FieldSeparator, TodoArrBeg, ..., TodoArrEnd
-fn from_todo_string(todo_str: String) -> Todo {
+pub fn from_todo_string(todo_str: String) -> Todo {
     let raw_tokens = tokenize_todo_string(&todo_str);
 
     todo_from_tokens(raw_tokens)
