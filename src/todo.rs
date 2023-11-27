@@ -112,7 +112,7 @@ fn to_string_todo(todo: &Todo) -> String {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum TodoTokens {
     FieldSeparator, // |
     TodoArrBeg,     // [
@@ -122,7 +122,6 @@ enum TodoTokens {
 }
 
 fn tokenize_todo_string(todo_str: &String) -> Vec<TodoTokens> {
-    println!("{todo_str}");
     let mut str_chars = todo_str.chars();
 
     let mut tokens: Vec<TodoTokens> = Vec::new();
@@ -169,20 +168,14 @@ fn tokenize_todo_string(todo_str: &String) -> Vec<TodoTokens> {
 }
 
 fn todo_from_tokens(tokens: Vec<TodoTokens>) -> Todo {
-    Todo::new(Some(false), "".to_string())
-}
-
-// Format of Todo with no sub_todos: TodoValue, FieldSeparator, TodoValue, FieldSeparator
-// Format of Todo with sub_todos: TodoValue, FieldSeparator, TodoValue, FieldSeparator, TodoArrBeg, ..., TodoArrEnd
-fn from_todo_string(todo_str: String) -> Todo {
-    let raw_tokens = tokenize_todo_string(&todo_str);
-    let num_tokens = raw_tokens.iter().count();
-    let mut tokens = raw_tokens.iter();
+    let num_tokens = tokens.iter().count();
+    let mut token_iter = tokens.iter();
 
     if num_tokens == 4 {
+        // Todo with no nesting
         let mut todo = Todo::new(None, "".to_string());
 
-        if let Some(TodoTokens::TodoValue(complete_field)) = tokens.by_ref().next() {
+        if let Some(TodoTokens::TodoValue(complete_field)) = token_iter.by_ref().next() {
             todo.complete = match complete_field.as_str() {
                 "0" => false,
                 "1" => true,
@@ -190,17 +183,18 @@ fn from_todo_string(todo_str: String) -> Todo {
             };
         }
 
-        tokens.by_ref().next(); // This will be a field separator, so ignore
+        token_iter.by_ref().next(); // This will be a field separator, so ignore
 
-        if let Some(TodoTokens::TodoValue(contents_field)) = tokens.next() {
+        if let Some(TodoTokens::TodoValue(contents_field)) = token_iter.next() {
             todo.contents = contents_field.clone();
         };
 
         todo
     } else {
+        // Nested todos included
         let mut root = Todo::new(Some(false), "".to_string());
 
-        if let Some(complete) = tokens.by_ref().next() {
+        if let Some(complete) = token_iter.by_ref().next() {
             if let TodoTokens::TodoValue(val) = complete {
                 root.complete = match val.as_str() {
                     "0" => false,
@@ -210,24 +204,38 @@ fn from_todo_string(todo_str: String) -> Todo {
             }
         }
 
-        tokens.by_ref().next(); // Skip field separator
+        token_iter.by_ref().next(); // Skip field separator
 
-        if let Some(contents) = tokens.by_ref().next() {
+        if let Some(contents) = token_iter.by_ref().next() {
             if let TodoTokens::TodoValue(val) = contents {
                 root.contents = val.clone();
             }
         }
 
-        let children = todo_from_tokens(tokens.map(|e| e.clone()).collect::<Vec<TodoTokens>>());
+        // Here, there is at least 1 TodoArrBeg and TodoArrEnd, there might be more, i.e. nested todos within the already nested todos, the
+        // children variable here contains all remaing tokens after having parsed the first few above
+        token_iter.next(); // Skip FieldSeparator
+        token_iter.next(); // Skip TodoArrBeg
+        token_iter.next_back(); // Skip TodoArrEnd
 
-        println!("{root:?}");
+        let sub_todos = token_iter.map(|e| e.clone()).collect::<Vec<TodoTokens>>();
 
-        Todo {
-            complete: false,
-            contents: "".to_string(),
-            sub_todos: Vec::new(),
+        let children = sub_todos.split(|e| *e == TodoTokens::TodoSeparator);
+
+        for child in children {
+            root.sub_todos.push(todo_from_tokens(child.to_vec()));
         }
+
+        root
     }
+}
+
+// Format of Todo with no sub_todos: TodoValue, FieldSeparator, TodoValue, FieldSeparator
+// Format of Todo with sub_todos: TodoValue, FieldSeparator, TodoValue, FieldSeparator, TodoArrBeg, ..., TodoArrEnd
+fn from_todo_string(todo_str: String) -> Todo {
+    let raw_tokens = tokenize_todo_string(&todo_str);
+
+    todo_from_tokens(raw_tokens)
 }
 
 #[cfg(test)]
@@ -259,6 +267,44 @@ mod tests {
                 }]
             },
             from_todo_string("0|One sub|[1|This is a sub_todo|]".to_string())
+        );
+    }
+
+    #[test]
+    fn test_from_todo_string_w_doubly_nested_sub_todos() {
+        assert_eq!(
+            Todo {
+                complete: false,
+                contents: "One sub".to_string(),
+                sub_todos: vec![Todo {
+                    complete: true,
+                    contents: "This is a sub_todo".to_string(),
+                    sub_todos: Vec::new()
+                }]
+            },
+            from_todo_string(
+                "0|One sub|[1|This is a sub_todo|[1|This is an even further nested todo|]]"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn test_from_todo_string_w_multiple_sub_todos() {
+        assert_eq!(
+            Todo {
+                complete: false,
+                contents: "One sub".to_string(),
+                sub_todos: vec![Todo {
+                    complete: true,
+                    contents: "This is a sub_todo".to_string(),
+                    sub_todos: Vec::new()
+                }]
+            },
+            from_todo_string(
+                "0|One sub|[1|This is a sub_todo|%1|This is an even further nested todo|]"
+                    .to_string()
+            )
         );
     }
 }
