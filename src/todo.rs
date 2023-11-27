@@ -27,11 +27,11 @@ impl Todo {
         }
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_todos(&self) -> String {
         // Generally used for serialization
         if self.sub_todos.len() == 0 {
             format!(
-                "{}|{}",
+                "{}|{}|",
                 match self.complete {
                     true => 1,
                     false => 0,
@@ -39,11 +39,45 @@ impl Todo {
                 self.contents
             )
         } else {
-            let mut str_repr = vec![format!(
-                "{}|{}",
+            let mut root = format!(
+                "{}|{}|[",
                 match self.complete {
                     true => 1,
                     false => 0,
+                },
+                self.contents
+            );
+
+            let mut children = Vec::new();
+
+            for child in self.sub_todos.iter() {
+                children.push(child.to_todos());
+            }
+
+            root.push_str(&children.join("%"));
+
+            root.push(']');
+
+            root
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        if self.sub_todos.len() == 0 {
+            format!(
+                "[{}] - {}",
+                match self.complete {
+                    false => ' ',
+                    true => 'X',
+                },
+                self.contents
+            )
+        } else {
+            let mut res = vec![format!(
+                "[{}] - {}",
+                match self.complete {
+                    false => ' ',
+                    true => 'X',
                 },
                 self.contents
             )];
@@ -54,11 +88,12 @@ impl Todo {
                     .split("\n")
                     .map(|e| e.to_string())
                     .collect::<Vec<_>>()
-                    .join("\n-");
-                str_repr.push(format!("-{child_string}"));
+                    .join("\n");
+
+                res.push(format!("- {child_string}"));
             }
 
-            str_repr.join("\n")
+            res.join("\n")
         }
     }
 }
@@ -243,7 +278,55 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_from_todo_string_no_sub_todos() {
+    fn from_todo_to_string_no_sub_todos() {
+        let example = Todo::new(Some(false), "Something".to_string());
+        assert_eq!("[ ] - Something", example.to_string());
+    }
+
+    #[test]
+    fn from_todo_to_string_w_sub_todos() {
+        let mut example = Todo::new(Some(false), "Something".to_string());
+
+        example
+            .sub_todos
+            .push(Todo::new(Some(true), "This is a test".to_string()));
+
+        assert_eq!(
+            "[ ] - Something\n- [X] - This is a test",
+            example.to_string()
+        );
+    }
+
+    #[test]
+    fn from_todo_to_todos_no_sub_todos() {
+        let example = Todo::new(Some(false), "Something".to_string());
+        assert_eq!("0|Something|", example.to_todos());
+    }
+
+    #[test]
+    fn from_todo_to_todos_w_sub_todos() {
+        let mut example = Todo::new(Some(false), "Something".to_string());
+
+        example
+            .sub_todos
+            .push(Todo::new(Some(true), "This is a test".to_string()));
+
+        example
+            .sub_todos
+            .push(Todo::new(Some(true), "This is a test".to_string()));
+
+        example
+            .sub_todos
+            .push(Todo::new(Some(true), "This is a test".to_string()));
+
+        assert_eq!(
+            "0|Something|[1|This is a test|%1|This is a test|%1|This is a test|]",
+            example.to_todos()
+        );
+    }
+
+    #[test]
+    fn from_todo_string_no_sub_todos() {
         assert_eq!(
             Todo {
                 complete: false,
@@ -255,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_todo_string_w_sub_todos() {
+    fn from_todo_string_w_sub_todos() {
         assert_eq!(
             Todo {
                 complete: false,
@@ -271,7 +354,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_todo_string_w_doubly_nested_sub_todos() {
+    fn from_todo_string_w_doubly_nested_sub_todos() {
         assert_eq!(
             Todo {
                 complete: false,
@@ -290,7 +373,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_todo_string_w_multiple_sub_todos() {
+    fn from_todo_string_w_multiple_sub_todos() {
         assert_eq!(
             Todo {
                 complete: false,
