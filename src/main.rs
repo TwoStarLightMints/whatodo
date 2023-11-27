@@ -23,14 +23,25 @@ fn load_todos() -> Vec<Todo> {
 
     itf.read_to_string(&mut todo_string).unwrap(); // Get all of the todos from the file
 
+    println!("{todo_string}");
+
     let mut todos: Vec<Todo> = Vec::new();
 
-    // Loads todos read in from file
-    for str in todo_string.split("\n").into_iter() {
-        todos.push(from_todo_string(str.to_string()));
-    }
+    if todo_string.is_empty() {
+        todos
+    } else {
+        // Loads todos read in from file
+        for str in todo_string
+            .split("\n")
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .into_iter()
+        {
+            todos.push(from_todo_string(str.to_string()));
+        }
 
-    todos
+        todos
+    }
 }
 
 fn init_new_list() -> Result<(), Error> {
@@ -80,7 +91,8 @@ fn save_todos(todos_list: Vec<Todo>) {
     let mut otf = File::create("todo.todos").unwrap();
 
     for todo in todos_list {
-        otf.write(todo.to_todos().as_bytes()).unwrap();
+        otf.write(format!("{}\n", todo.to_todos()).as_bytes())
+            .unwrap();
     }
 }
 
