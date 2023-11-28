@@ -1,4 +1,6 @@
 // whatodo add "Make that one function"
+// whatodo add 1 "A sub todo"
+// whatodo add 11 "A sub todo's sub todo"
 // whatodo checkout all | Prints all todos
 // whatodo checkout done | Prints all todos marked done
 // whatodo checkout todo | Prints all todos not marked done
@@ -44,6 +46,72 @@ fn load_todos() -> Vec<Todo> {
 
 fn init_new_list() -> Result<(), Error> {
     File::create("todo.todos")?;
+    Ok(())
+}
+
+// There can exist multiple sub todos that are the same, but no base level todos may be the same
+fn add_to_list(
+    mut todos_list: Vec<Todo>,
+    value: String,
+    num_depth: Option<&str>,
+) -> Result<(), String> {
+    let new_todo = Todo::new(None, String::from(value.clone()));
+
+    let mut found = false;
+
+    for todo in todos_list.iter() {
+        if todo.contents == value {
+            found = true;
+        }
+    }
+
+    if !found {
+        match num_depth {
+            None => todos_list.push(new_todo),
+            Some(depth) => {
+                // The depth indicator 111 will push the sub todo to the first todo's first sub todo's first nested sub todo's sub todo list
+                // root #1
+                //     sub todo
+                //         sub todo
+                //             sub todo <- PUSHED HERE
+                let mut depth_finder = depth
+                    .chars()
+                    .map(|c| usize::from_str_radix(String::from(c).as_str(), 10).unwrap() - 1)
+                    .collect::<Vec<_>>()
+                    .into_iter();
+
+                let index = depth_finder.next().unwrap();
+
+                if index > todos_list.len() {
+                    return Err(format!(
+                        "Index {} out of bounds, number of todos is {}",
+                        index,
+                        todos_list.len()
+                    ));
+                }
+                let mut root = &mut todos_list[index];
+
+                while let Some(ind) = depth_finder.next() {
+                    if ind >= root.sub_todos.len() {
+                        return Err(format!(
+                            "Index {} out of bounds, number of sub todos is {}",
+                            ind,
+                            root.sub_todos.len()
+                        ));
+                    }
+
+                    root = &mut root.sub_todos[ind];
+                }
+
+                root.sub_todos.push(new_todo);
+            }
+        }
+    } else {
+        println!("Todo is already in the list")
+    }
+
+    save_todos(todos_list);
+
     Ok(())
 }
 
@@ -123,27 +191,31 @@ fn main() {
     let args = &env_args[1..]; // Get arguments and collect all necessary for operation of the program
 
     // Use if let statements to check the length of the arguments sent in and give them descriptive values
-    if let [command, value] = args {
+    if let [_, num_depth, value] = args {
+        // This branch will handle adding a sub todo specifically
+        let todos_list: Vec<Todo> = load_todos();
+        match add_to_list(todos_list, value.clone(), Some(num_depth)) {
+            Ok(_) => (),
+            Err(e) => eprintln!("{e}"),
+        };
+    } else if let [command, value] = args {
         let mut todos_list: Vec<Todo> = load_todos();
 
         if command == "checkout" {
             checkout_list(value.as_str(), &todos_list);
         } else if command == "add" {
             // This branch involves all functionality for adding todos
-            let new_todo = Todo::new(None, String::from(value.clone()));
-            if !todos_list.contains(&new_todo) {
-                todos_list.push(new_todo);
-            } else {
-                println!("Todo is already in the list")
-            }
-            save_todos(todos_list);
+            match add_to_list(todos_list, value.clone(), None) {
+                Ok(_) => (),
+                Err(e) => eprintln!("{e}"),
+            };
         } else if command == "complete" {
             // This branch involves all functionality with completing todos
             match value.parse::<usize>() {
                 Ok(num) => {
                     todos_list[num - 1].complete = true;
                 }
-                Err(_) => println!("Invalid index given"),
+                Err(_) => eprintln!("Invalid index given"),
             }
             save_todos(todos_list);
         } else if command == "remove" {
