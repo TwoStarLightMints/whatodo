@@ -116,38 +116,6 @@ impl fmt::Display for Todo {
     }
 }
 
-fn to_string_todo(todo: &Todo) -> String {
-    if todo.sub_todos.len() == 0 {
-        format!(
-            "{}|{}",
-            match todo.complete {
-                false => 0,
-                true => 1,
-            },
-            todo.contents
-        )
-    } else {
-        let mut to_return = format!(
-            "{}|{}|[",
-            match todo.complete {
-                false => 0,
-                true => 1,
-            },
-            todo.contents
-        );
-
-        for sub_todo in todo.sub_todos.iter() {
-            to_return.push_str(format!("{},", to_string_todo(sub_todo)).as_str());
-        }
-
-        to_return.pop();
-
-        to_return.push_str("]");
-
-        to_return
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 enum TodoTokens {
     FieldSeparator, // |
