@@ -91,7 +91,7 @@ impl Todo {
                     .collect::<Vec<_>>()
                     .join("\n- ");
 
-                res.push(format!("- {complete}"));
+                res.push(format!("    {complete}"));
             }
 
             res.join("\n")
