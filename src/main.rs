@@ -22,28 +22,31 @@ use std::{
 
 use whatodo::todo::{from_todo_string, Todo};
 
-fn load_todos() -> Vec<Todo> {
-    let mut itf = File::open("todo.todos").unwrap(); // Open the todo file for processing
-    let mut todo_string = String::new();
+fn load_todos() -> Result<Vec<Todo>, String> {
+    match File::open("todo.todos") {
+        // Open the todo file for processing if found
+        Ok(mut f) => {
+            let mut todo_string = String::new();
 
-    itf.read_to_string(&mut todo_string).unwrap(); // Get all of the todos from the file
+            f.read_to_string(&mut todo_string).unwrap(); // Get all of the todos from the file
 
-    let mut todos: Vec<Todo> = Vec::new();
+            let mut todos: Vec<Todo> = Vec::new();
 
-    if todo_string.is_empty() {
-        todos
-    } else {
-        // Loads todos read in from file
-        for str in todo_string
-            .split("\n")
-            .into_iter()
-            .filter(|s| !s.is_empty())
-            .into_iter()
-        {
-            todos.push(from_todo_string(str.to_string()));
+            // Loads todos read in from file
+            for str in todo_string
+                .split("\n")
+                .into_iter()
+                .filter(|s| !s.is_empty())
+                .into_iter()
+            {
+                todos.push(from_todo_string(str.to_string()));
+            }
+
+            Ok(todos)
         }
-
-        todos
+        Err(_) => Err(
+            "todo.todos file not found, please use \n`whatodo init`\nto start using".to_string(),
+        ),
     }
 }
 
@@ -119,6 +122,11 @@ fn add_to_list(
 }
 
 fn checkout_list(option: &str, todos_list: &Vec<Todo>) {
+    if todos_list.len() == 0 {
+        println!("There are no todos!");
+        return;
+    }
+
     if option == "all" {
         for todo in todos_list {
             println!("{}", todo.to_string());
@@ -292,7 +300,13 @@ fn main() {
     // Use if let statements to check the length of the arguments sent in and give them descriptive values
     if let [command, num_depth, value] = args {
         // This branch will handle adding a sub todo specifically
-        let todos_list: Vec<Todo> = load_todos();
+        let todos_list: Vec<Todo> = match load_todos() {
+            Ok(list) => list,
+            Err(message) => {
+                eprintln!("{message}");
+                std::process::exit(1);
+            }
+        };
 
         if command == "add" {
             match add_to_list(todos_list, value.clone(), Some(num_depth)) {
@@ -306,7 +320,13 @@ fn main() {
             }
         }
     } else if let [command, value] = args {
-        let todos_list: Vec<Todo> = load_todos();
+        let todos_list: Vec<Todo> = match load_todos() {
+            Ok(list) => list,
+            Err(message) => {
+                eprintln!("{message}");
+                std::process::exit(1);
+            }
+        };
 
         if command == "checkout" {
             checkout_list(value.as_str(), &todos_list);
