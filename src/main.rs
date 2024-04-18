@@ -225,7 +225,13 @@ fn remove_from_list(
     } else {
         match option.parse::<usize>() {
             Ok(num) => {
-                todos_list.remove(num - 1);
+                let ind_to_remove = num - 1;
+                match todos_list.get(ind_to_remove) {
+                    Some(_) => {
+                        todos_list.remove(ind_to_remove);
+                    }
+                    None => println!("No more todos left!"),
+                }
                 Ok(todos_list)
             }
             Err(_) => {
