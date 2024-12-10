@@ -128,8 +128,8 @@ fn checkout_list(option: &str, todos_list: &Vec<Todo>) {
     }
 
     if option == "all" {
-        for todo in todos_list {
-            println!("{}", todo.to_string());
+        for (ind, todo) in todos_list.iter().enumerate() {
+            println!("{}. {}", ind + 1, todo.to_string());
         }
     } else if option == "done" {
         for todo in todos_list.iter().filter(|e| e.complete) {
