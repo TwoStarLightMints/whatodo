@@ -97,6 +97,53 @@ impl Todo {
             res.join("\n")
         }
     }
+
+    pub fn to_enumerated_string(&self, index: Option<usize>) -> String {
+        //! The enumeration for top level todos will be handled elsewhere,
+        //! for the subtodos, that will be handled by the index parameter.
+
+        if self.sub_todos.len() == 0 {
+            format!(
+                "{}[{}] - {}",
+                match index {
+                    Some(ind) => format!("{}. ", ind),
+                    None => "".to_string(),
+                },
+                match self.complete {
+                    false => ' ',
+                    true => 'X',
+                },
+                self.contents
+            )
+        } else {
+            let mut res = vec![format!(
+                "{}[{}] - {}",
+                match index {
+                    Some(ind) => format!("{}. ", ind),
+                    None => "".to_string(),
+                },
+                match self.complete {
+                    false => ' ',
+                    true => 'X',
+                },
+                self.contents
+            )];
+
+            for (child_index, child) in self.sub_todos.iter().enumerate() {
+                let child_string = child.to_enumerated_string(Some(child_index + 1));
+
+                let complete = child_string
+                    .split("\n")
+                    .map(|e| e.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n- ");
+
+                res.push(format!("    {complete}"));
+            }
+
+            res.join("\n")
+        }
+    }
 }
 
 impl PartialEq for Todo {
