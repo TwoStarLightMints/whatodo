@@ -17,63 +17,43 @@
 use std::{
     env,
     fs::File,
-    io::{Error, Read, Write},
+    io::{Read, Write},
 };
 
 use whatodo::todo::{from_todo_string, Todo};
 
-fn load_todos() -> Result<Vec<Todo>, String> {
-    match File::open("todo.todos") {
-        // Open the todo file for processing if found
-        Ok(mut f) => {
-            let mut todo_string = String::new();
+fn load_todos() -> Result<Vec<Todo>, std::io::Error> {
+    let mut f = File::open("todo.todos")?;
 
-            f.read_to_string(&mut todo_string).unwrap(); // Get all of the todos from the file
+    let mut todo_string = String::new();
 
-            let mut todos: Vec<Todo> = Vec::new();
+    f.read_to_string(&mut todo_string)?; // Get all of the todos from the file
 
-            // Loads todos read in from file
-            for str in todo_string
-                .split("\n")
-                .into_iter()
-                .filter(|s| !s.is_empty())
-                .into_iter()
-            {
-                todos.push(from_todo_string(str.to_string()));
-            }
+    let mut todos: Vec<Todo> = Vec::new();
 
-            Ok(todos)
-        }
-        Err(_) => Err(
-            "todo.todos file not found, please use \n`whatodo init`\nto start using".to_string(),
-        ),
+    // Loads todos read in from file
+    for str in todo_string.lines().into_iter().filter(|s| !s.is_empty()) {
+        todos.push(from_todo_string(str.to_string()));
     }
+
+    Ok(todos)
 }
 
-fn init_new_list() -> Result<(), Error> {
+fn init_new_list() -> Result<(), std::io::Error> {
     File::create("todo.todos")?;
     Ok(())
 }
 
 // There can exist multiple sub todos that are the same, but no base level todos may be the same
-fn add_to_list(
-    mut todos_list: Vec<Todo>,
-    value: String,
-    num_depth: Option<&str>,
-) -> Result<(), String> {
-    let new_todo = Todo::new(None, String::from(value.clone()));
+fn add_to_list(mut todos_list: Vec<Todo>, value: String, num_depth: Option<&str>) {
+    if todos_list
+        .iter()
+        .position(|t| t.contents == value)
+        .is_none()
+    {
+        let new_todo = Todo::new(None, String::from(value.clone()));
 
-    let mut found = false;
-
-    for todo in todos_list.iter() {
-        if todo.contents == value {
-            found = true;
-        }
-    }
-
-    if !found {
         match num_depth {
-            None => todos_list.push(new_todo),
             Some(depth) => {
                 // The depth indicator 111 will push the sub todo to the first todo's first sub todo's first nested sub todo's sub todo list
                 // root #1
@@ -86,39 +66,26 @@ fn add_to_list(
                     .collect::<Vec<_>>()
                     .into_iter();
 
-                let index = depth_finder.next().unwrap();
+                let mut curr_root: &mut Vec<Todo> = &mut todos_list;
 
-                if index > todos_list.len() {
-                    return Err(format!(
-                        "Index {} out of bounds, number of todos is {}",
-                        index,
-                        todos_list.len()
-                    ));
-                }
-                let mut root = &mut todos_list[index];
-
-                while let Some(ind) = depth_finder.next() {
-                    if ind >= root.sub_todos.len() {
-                        return Err(format!(
-                            "Index {} out of bounds, number of sub todos is {}",
-                            ind,
-                            root.sub_todos.len()
-                        ));
+                while let Some(index) = depth_finder.next() {
+                    if let Some(node) = curr_root.get_mut(index) {
+                        curr_root = &mut node.sub_todos;
+                    } else {
+                        eprintln!("Index out of bounds, could not add subtodo");
+                        return;
                     }
-
-                    root = &mut root.sub_todos[ind];
                 }
 
-                root.sub_todos.push(new_todo);
+                curr_root.push(new_todo);
             }
+            None => todos_list.push(new_todo),
         }
     } else {
         println!("Todo is already in the list")
     }
 
     save_todos(todos_list);
-
-    Ok(())
 }
 
 fn checkout_list(option: &str, todos_list: &Vec<Todo>) {
@@ -129,20 +96,20 @@ fn checkout_list(option: &str, todos_list: &Vec<Todo>) {
 
     if option == "all" {
         for (ind, todo) in todos_list.iter().enumerate() {
-            println!("{}. {}", ind + 1, todo.to_string());
+            println!("{}. {}", ind + 1, todo.to_enumerated_string(None));
         }
     } else if option == "done" {
         for todo in todos_list.iter().filter(|e| e.complete) {
             println!("{}", todo.to_string());
         }
     } else if option == "todo" {
-        for todo in todos_list.iter().filter(|e| !e.complete) {
-            println!("{}", todo.to_string());
+        for (ind, todo) in todos_list.iter().filter(|e| !e.complete).enumerate() {
+            println!("{}. {}", ind + 1, todo.to_enumerated_string(None));
         }
     }
 }
 
-fn complete_todo(mut todos_list: Vec<Todo>, num_depth: &str) -> Result<Vec<Todo>, String> {
+fn complete_todo(mut todos_list: Vec<Todo>, num_depth: &str) {
     let mut depth_finder = num_depth
         .chars()
         .map(|c| usize::from_str_radix(c.to_string().as_str(), 10).unwrap() - 1)
@@ -151,40 +118,27 @@ fn complete_todo(mut todos_list: Vec<Todo>, num_depth: &str) -> Result<Vec<Todo>
 
     let final_index = depth_finder.next_back().unwrap();
 
-    if let Some(index) = depth_finder.next() {
-        if index > todos_list.len() {
-            return Err(format!(
-                "Index {index} is out of bounds for number of todos {}",
-                todos_list.len()
-            ));
-        }
-        let mut root = &mut todos_list[index];
+    let mut curr_root = &mut todos_list;
 
-        while let Some(ind) = depth_finder.next() {
-            if ind > root.sub_todos.len() {
-                return Err(format!(
-                    "Index {ind} is out of bounds for number of todos {}",
-                    todos_list.len()
-                ));
+    while let Some(ind) = depth_finder.next() {
+        match curr_root.get_mut(ind) {
+            Some(node) => curr_root = &mut node.sub_todos,
+            None => {
+                eprintln!("Index is out of bounds, could not complete todo");
+                return;
             }
-
-            root = &mut root.sub_todos[ind];
         }
-
-        root.sub_todos[final_index].complete = true;
-        Ok(todos_list)
-    } else {
-        if final_index > todos_list.len() {
-            return Err(format!(
-                "Index {final_index} is out of bounds for number of todos {}",
-                todos_list.len()
-            ));
-        }
-
-        todos_list[final_index].complete = true;
-
-        Ok(todos_list)
     }
+
+    match curr_root.get_mut(final_index) {
+        Some(todo) => todo.complete = true,
+        None => {
+            eprintln!("Index is out of bounds, could not complete todo");
+            return;
+        }
+    }
+
+    save_todos(todos_list);
 }
 
 fn remove_from_list(
@@ -315,10 +269,7 @@ fn main() {
         };
 
         if command == "add" {
-            match add_to_list(todos_list, value.clone(), Some(num_depth)) {
-                Ok(_) => (),
-                Err(e) => eprintln!("{e}"),
-            };
+            add_to_list(todos_list, value.clone(), Some(num_depth));
         } else if command == "remove" {
             match remove_from_list(value.as_str(), todos_list, Some(num_depth)) {
                 Err(e) => eprintln!("{}", e),
@@ -338,16 +289,10 @@ fn main() {
             checkout_list(value.as_str(), &todos_list);
         } else if command == "add" {
             // This branch involves all functionality for adding todos
-            match add_to_list(todos_list, value.clone(), None) {
-                Ok(_) => (),
-                Err(e) => eprintln!("{e}"),
-            };
+            add_to_list(todos_list, value.clone(), None);
         } else if command == "complete" {
             // This branch involves all functionality with completing todos
-            match complete_todo(todos_list, value) {
-                Ok(list) => save_todos(list),
-                Err(e) => eprintln!("{e}"),
-            }
+            complete_todo(todos_list, value);
         } else if command == "remove" {
             match remove_from_list(value.as_str(), todos_list, None) {
                 Err(e) => eprintln!("{e}"),
