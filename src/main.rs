@@ -65,7 +65,7 @@ fn init_new_list() -> Result<()> {
 
 // There can exist multiple sub todos that are the same, but no base level todos may be the same
 fn add_to_list(mut todos_list: Vec<Todo>, args: Vec<String>) -> Result<()> {
-    let depth_list = utils::depth_iterator_from_args_to_item(args.iter().skip(1).peekable());
+    let depth_list = utils::depth_iterator_from_args_to_item(args.iter().peekable());
 
     match args.last() {
         Some(value) => {
@@ -97,11 +97,11 @@ fn add_to_list(mut todos_list: Vec<Todo>, args: Vec<String>) -> Result<()> {
     }
 }
 
-fn checkout_list(todos_list: &Vec<Todo>, option: &str) -> Result<()> {
+fn checkout_list(todos_list: Vec<Todo>, option: String) -> Result<()> {
     if todos_list.len() == 0 {
         println!("There are no todos!");
     } else {
-        match option {
+        match option.as_str() {
             "all" => {
                 for (ind, todo) in todos_list.iter().enumerate() {
                     println!("{}. {}", ind + 1, todo.to_enumerated_string(None));
@@ -240,19 +240,19 @@ fn help() {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().skip(1).collect();
+    let mut args = env::args().skip(1);
 
-    if let Some(command) = args.get(0) {
+    if let Some(command) = args.next() {
         match command.as_str() {
             "init" => init_new_list(),
-            "add" => add_to_list(load_todos().unwrap(), args),
-            "remove" => remove_from_list(load_todos().unwrap(), args[1..].to_owned()),
-            "complete" => complete_todo(load_todos().unwrap(), args[1..].to_owned()),
+            "add" => add_to_list(load_todos().unwrap(), args.collect()),
+            "remove" => remove_from_list(load_todos().unwrap(), args.collect()),
+            "complete" => complete_todo(load_todos().unwrap(), args.collect()),
             "checkout" => checkout_list(
-                &load_todos().unwrap(),
-                match args.get(1) {
+                load_todos().unwrap(),
+                match args.next() {
                     Some(arg) => arg,
-                    None => "all",
+                    None => "all".to_string(),
                 },
             ),
             _ => {
