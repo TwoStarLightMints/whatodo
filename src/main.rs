@@ -90,10 +90,7 @@ fn add_to_list(mut todos_list: Vec<Todo>, args: Vec<String>) -> Result<()> {
 
             save_todos(todos_list)
         }
-        None => {
-            help();
-            Err(WhatodoError::NotEnoughArguments)
-        }
+        None => Err(WhatodoError::NotEnoughArguments),
     }
 }
 
@@ -118,7 +115,6 @@ fn checkout_list(todos_list: Vec<Todo>, option: String) -> Result<()> {
                 }
             }
             _ => {
-                help();
                 return Err(WhatodoError::InvalidCommand);
             }
         }
@@ -180,10 +176,7 @@ fn remove_from_list(mut todos_list: Vec<Todo>, args: Vec<String>) -> Result<()> 
                 }
             }
         }
-        None => {
-            help();
-            Err(WhatodoError::NotEnoughArguments)
-        }
+        None => Err(WhatodoError::NotEnoughArguments),
     }
 }
 
@@ -259,13 +252,13 @@ fn main() {
                 help();
                 Ok(())
             }
-            _ => {
-                help();
-                Err(WhatodoError::InvalidCommand)
-            }
+            _ => Err(WhatodoError::InvalidCommand),
         } {
             Ok(_) => (),
-            Err(e) => eprintln!("{e}"),
+            Err(e) => {
+                eprintln!("{e}\n");
+                help()
+            }
         }
     } else {
         help();
