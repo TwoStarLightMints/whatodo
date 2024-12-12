@@ -3,20 +3,16 @@ use std::iter::Peekable;
 
 pub fn get_mut_from_num_depth<'a>(
     todos_list: &'a mut Vec<Todo>,
-    num_depth: &str,
+    num_depth: &Vec<usize>,
 ) -> Option<&'a mut Todo> {
-    let mut depth_finder = num_depth
-        .chars()
-        .map(|c| usize::from_str_radix(c.to_string().as_str(), 10).unwrap() - 1)
-        .collect::<Vec<_>>()
-        .into_iter();
+    let mut depth_finder = num_depth.iter();
 
     let final_index = depth_finder.next_back().unwrap();
 
     let mut curr_root = todos_list;
 
     while let Some(ind) = depth_finder.next() {
-        match curr_root.get_mut(ind) {
+        match curr_root.get_mut(*ind) {
             Some(node) => curr_root = &mut node.sub_todos,
             None => {
                 eprintln!("Index is out of bounds, could not complete todo");
@@ -25,24 +21,25 @@ pub fn get_mut_from_num_depth<'a>(
         }
     }
 
-    curr_root.get_mut(final_index)
+    curr_root.get_mut(*final_index)
 }
 
-pub fn get_depth_iterator_item<'a, I: Iterator<Item = &'a String> + std::fmt::Debug>(
+pub fn depth_iterator_from_args_to_item<'a, I: Iterator<Item = &'a String>>(
     mut num_depth: Peekable<I>,
 ) -> Vec<usize> {
     //! Returns a vector which will contain the path to the individual item.
     let mut indices: Vec<usize> = Vec::new();
 
     while let Some(ind) = num_depth.next_if(|i| i.parse::<usize>().is_ok()) {
+        // Account for user not using 0-indexing
         indices.push(ind.parse::<usize>().unwrap() - 1);
     }
 
     indices
 }
 
-pub fn get_depth_iterator_list<'a, I: Iterator<Item = &'a str>>(
-    num_depth: &'a mut Peekable<I>,
+pub fn depth_iterator_from_args_to_parent<'a, I: Iterator<Item = &'a String>>(
+    mut num_depth: Peekable<I>,
 ) -> Vec<usize> {
     //! Returns a vector which will contain the path to the list in which the
     //! item resides.
@@ -50,7 +47,8 @@ pub fn get_depth_iterator_list<'a, I: Iterator<Item = &'a str>>(
     let mut indices: Vec<usize> = Vec::new();
 
     while let Some(ind) = num_depth.next_if(|i| i.parse::<usize>().is_ok()) {
-        indices.push(ind.parse::<usize>().unwrap());
+        // Account for user not using 0-indexing
+        indices.push(ind.parse::<usize>().unwrap() - 1);
     }
 
     indices.pop(); // Remove the back, because the back refers to the individual item

@@ -49,7 +49,7 @@ fn init_new_list() -> Result<(), std::io::Error> {
 
 // There can exist multiple sub todos that are the same, but no base level todos may be the same
 fn add_to_list(mut todos_list: Vec<Todo>, args: Vec<String>) {
-    let depth_list = utils::get_depth_iterator_item(args.iter().skip(1).peekable());
+    let depth_list = utils::depth_iterator_from_args_to_item(args.iter().skip(1).peekable());
 
     match args.last() {
         Some(value) => {
@@ -105,8 +105,11 @@ fn checkout_list(todos_list: &Vec<Todo>, option: &str) {
     }
 }
 
-fn complete_todo(mut todos_list: Vec<Todo>, num_depth: &str) {
-    let item_to_complete = utils::get_mut_from_num_depth(&mut todos_list, num_depth);
+fn complete_todo(mut todos_list: Vec<Todo>, args: Vec<String>) {
+    let item_to_complete = utils::get_mut_from_num_depth(
+        &mut todos_list,
+        &utils::depth_iterator_from_args_to_item(args.iter().peekable()),
+    );
 
     match item_to_complete {
         Some(todo) => todo.complete = true,
@@ -124,64 +127,41 @@ fn remove_from_list(mut todos_list: Vec<Todo>, args: Vec<String>) {
         Some(first) => {
             match first.as_str() {
                 "all" => save_todos(Vec::new()),
-                "done" => save_todos(todos_list.iter().filter()),
-                "todo" => (),
+                "done" => save_todos(todos_list.into_iter().filter(|t| !t.complete).collect()),
+                "todo" => save_todos(todos_list.into_iter().filter(|t| t.complete).collect()),
                 // Check to see if it's a depth thing
-                _ => (),
+                _ => {
+                    let mut depth_list =
+                        utils::depth_iterator_from_args_to_parent(args.iter().peekable())
+                            .into_iter();
+
+                    let mut curr_root = &mut todos_list;
+
+                    while let Some(ind) = depth_list.next() {
+                        match curr_root.get_mut(ind) {
+                            Some(node) => curr_root = &mut node.sub_todos,
+                            None => {
+                                eprintln!("Index out of bounds, could not remove todo");
+                                return;
+                            }
+                        }
+                    }
+
+                    let index_to_remove = args.last().unwrap().parse::<usize>().unwrap() - 1;
+
+                    match curr_root.get(index_to_remove) {
+                        Some(_) => curr_root.remove(index_to_remove),
+                        None => {
+                            eprintln!("Index out of bounds, could not remove todo");
+                            return;
+                        }
+                    };
+
+                    save_todos(todos_list);
+                }
             }
         }
         None => help(),
-    }
-    // This branch involves all functionality with removing todos
-    if let Some(depth) = num_depth {
-        let mut depth_finder = depth
-            .chars()
-            .map(|c| usize::from_str_radix(String::from(c).as_str(), 10).unwrap() - 1)
-            .collect::<Vec<_>>()
-            .into_iter();
-
-        let final_index = depth_finder.next_back().unwrap();
-
-        let mut curr_root = &mut todos_list;
-
-        while let Some(ind) = depth_finder.next() {
-            match curr_root.get_mut(ind) {
-                Some(node) => curr_root = &mut node.sub_todos,
-                None => {
-                    eprintln!("Index is out of bounds, could not remove todo");
-                    return Err("L".to_string());
-                }
-            }
-        }
-
-        curr_root.remove(final_index);
-
-        Ok(todos_list)
-    } else {
-        match option.parse::<usize>() {
-            Ok(num) => {
-                let ind_to_remove = num - 1;
-                match todos_list.get(ind_to_remove) {
-                    Some(_) => {
-                        todos_list.remove(ind_to_remove);
-                    }
-                    None => println!("No more todos left!"),
-                }
-                Ok(todos_list)
-            }
-            Err(_) => {
-                if option == "all" {
-                    todos_list.clear();
-                    Ok(todos_list)
-                } else if option == "done" {
-                    Ok(todos_list.into_iter().filter(|e| !e.complete).collect())
-                } else if option == "todo" {
-                    Ok(todos_list.into_iter().filter(|e| e.complete).collect())
-                } else {
-                    Ok(todos_list)
-                }
-            }
-        }
     }
 }
 
@@ -227,22 +207,16 @@ fn help() {
 }
 
 fn main() {
-    let mut args: Vec<String> = env::args().skip(1).collect();
+    let args: Vec<String> = env::args().skip(1).collect();
 
     if let Some(command) = args.get(0) {
-        let todos_list: Vec<Todo> = match load_todos() {
-            Ok(list) => list,
-            Err(message) => {
-                eprintln!("{message}");
-                std::process::exit(1);
-            }
-        };
         match command.as_str() {
-            "add" => add_to_list(todos_list, args),
-            "remove" => (),
-            "complete" => (),
+            "init" => init_new_list().unwrap(),
+            "add" => add_to_list(load_todos().unwrap(), args),
+            "remove" => remove_from_list(load_todos().unwrap(), args[1..].to_owned()),
+            "complete" => complete_todo(load_todos().unwrap(), args[1..].to_owned()),
             "checkout" => checkout_list(
-                &todos_list,
+                &load_todos().unwrap(),
                 match args.get(1) {
                     Some(arg) => arg,
                     None => "all",
