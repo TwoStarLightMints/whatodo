@@ -1,5 +1,11 @@
 # Whatodo
 
+## Install
+```
+$ git clone https://github.com/TwoStarLightMints/whatodo.git
+$ cargo install --path ./whatodo
+```
+
 ## todo.todos file
 
 ### Format
