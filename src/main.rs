@@ -243,7 +243,7 @@ fn main() {
     let mut args = env::args().skip(1);
 
     if let Some(command) = args.next() {
-        match command.as_str() {
+        match match command.as_str() {
             "init" => init_new_list(),
             "add" => add_to_list(load_todos().unwrap(), args.collect()),
             "remove" => remove_from_list(load_todos().unwrap(), args.collect()),
@@ -255,12 +255,18 @@ fn main() {
                     None => "all".to_string(),
                 },
             ),
+            "help" => {
+                help();
+                Ok(())
+            }
             _ => {
                 help();
                 Err(WhatodoError::InvalidCommand)
             }
+        } {
+            Ok(_) => (),
+            Err(e) => eprintln!("{e}"),
         }
-        .unwrap()
     } else {
         help();
     }
