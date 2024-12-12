@@ -5,6 +5,8 @@ pub enum WhatodoError {
     CannotInitTodos(std::io::Error),
     TodoAlreadyInList,
     CannotSaveTodos(std::io::Error),
+    InvalidCommand,
+    NotEnoughArguments,
 }
 
 impl std::fmt::Display for WhatodoError {
@@ -15,6 +17,8 @@ impl std::fmt::Display for WhatodoError {
             Self::CannotInitTodos(e) => write!(f, "Could not init whatodo: {e}"),
             Self::TodoAlreadyInList => write!(f, "Todo is already in list, could not add todo"),
             Self::CannotSaveTodos(e) => write!(f, "Could not save todos: {e}"),
+            Self::InvalidCommand => write!(f, "Invalid command"),
+            Self::NotEnoughArguments => write!(f, "Not enough arguments provided"),
         }
     }
 }
