@@ -21,16 +21,30 @@ use std::{
 };
 
 use whatodo::{
+    error::WhatodoError,
     todo::{from_todo_string, Todo},
     utils,
 };
 
-fn load_todos() -> Result<Vec<Todo>, std::io::Error> {
-    let mut f = File::open("todo.todos")?;
+type Result<T> = std::result::Result<T, WhatodoError>;
+
+fn load_todos() -> Result<Vec<Todo>> {
+    let mut f = match File::open("todo.todos") {
+        Ok(file) => file,
+        Err(e) => {
+            return Err(WhatodoError::CannotLoadTodos(e));
+        }
+    };
 
     let mut todo_string = String::new();
 
-    f.read_to_string(&mut todo_string)?; // Get all of the todos from the file
+    match f.read_to_string(&mut todo_string) {
+        // Get all of the todos from the file
+        Ok(_) => (),
+        Err(e) => {
+            return Err(WhatodoError::CannotLoadTodos(e));
+        }
+    }
 
     let mut todos: Vec<Todo> = Vec::new();
 
@@ -42,13 +56,15 @@ fn load_todos() -> Result<Vec<Todo>, std::io::Error> {
     Ok(todos)
 }
 
-fn init_new_list() -> Result<(), std::io::Error> {
-    File::create("todo.todos")?;
-    Ok(())
+fn init_new_list() -> Result<()> {
+    match File::create("todo.todos") {
+        Ok(_) => Ok(()),
+        Err(e) => Err(WhatodoError::CannotInitTodos(e)),
+    }
 }
 
 // There can exist multiple sub todos that are the same, but no base level todos may be the same
-fn add_to_list(mut todos_list: Vec<Todo>, args: Vec<String>) {
+fn add_to_list(mut todos_list: Vec<Todo>, args: Vec<String>) -> Result<()> {
     let depth_list = utils::depth_iterator_from_args_to_item(args.iter().skip(1).peekable());
 
     match args.last() {
@@ -61,8 +77,7 @@ fn add_to_list(mut todos_list: Vec<Todo>, args: Vec<String>) {
                 curr_root = match curr_root.get_mut(ind) {
                     Some(node) => &mut node.sub_todos,
                     None => {
-                        eprintln!("Index out of bounds, could not add todo");
-                        return;
+                        return Err(WhatodoError::IndexOutOfBounds);
                     }
                 }
             }
@@ -70,42 +85,49 @@ fn add_to_list(mut todos_list: Vec<Todo>, args: Vec<String>) {
             if !utils::search_all_todos_content(&curr_root, &value) {
                 curr_root.push(new_todo);
             } else {
-                println!("Todo is already in the list")
+                return Err(WhatodoError::TodoAlreadyInList);
             }
 
-            save_todos(todos_list);
+            save_todos(todos_list)
         }
-        None => help(),
+        None => {
+            help();
+            Err(WhatodoError::NotEnoughArguments)
+        }
     }
 }
 
-fn checkout_list(todos_list: &Vec<Todo>, option: &str) {
+fn checkout_list(todos_list: &Vec<Todo>, option: &str) -> Result<()> {
     if todos_list.len() == 0 {
         println!("There are no todos!");
-        return;
+    } else {
+        match option {
+            "all" => {
+                for (ind, todo) in todos_list.iter().enumerate() {
+                    println!("{}. {}", ind + 1, todo.to_enumerated_string(None));
+                }
+            }
+            "done" => {
+                for todo in todos_list.iter().filter(|e| e.complete) {
+                    println!("{}", todo.to_string());
+                }
+            }
+            "todo" => {
+                for (ind, todo) in todos_list.iter().filter(|e| !e.complete).enumerate() {
+                    println!("{}. {}", ind + 1, todo.to_enumerated_string(None));
+                }
+            }
+            _ => {
+                help();
+                return Err(WhatodoError::InvalidCommand);
+            }
+        }
     }
 
-    match option {
-        "all" => {
-            for (ind, todo) in todos_list.iter().enumerate() {
-                println!("{}. {}", ind + 1, todo.to_enumerated_string(None));
-            }
-        }
-        "done" => {
-            for todo in todos_list.iter().filter(|e| e.complete) {
-                println!("{}", todo.to_string());
-            }
-        }
-        "todo" => {
-            for (ind, todo) in todos_list.iter().filter(|e| !e.complete).enumerate() {
-                println!("{}. {}", ind + 1, todo.to_enumerated_string(None));
-            }
-        }
-        _ => help(),
-    }
+    Ok(())
 }
 
-fn complete_todo(mut todos_list: Vec<Todo>, args: Vec<String>) {
+fn complete_todo(mut todos_list: Vec<Todo>, args: Vec<String>) -> Result<()> {
     let item_to_complete = utils::get_mut_from_num_depth(
         &mut todos_list,
         &utils::depth_iterator_from_args_to_item(args.iter().peekable()),
@@ -114,15 +136,14 @@ fn complete_todo(mut todos_list: Vec<Todo>, args: Vec<String>) {
     match item_to_complete {
         Some(todo) => todo.complete = true,
         None => {
-            eprintln!("Index is out of bounds, could not complete todo");
-            return;
+            return Err(WhatodoError::IndexOutOfBounds);
         }
     }
 
-    save_todos(todos_list);
+    save_todos(todos_list)
 }
 
-fn remove_from_list(mut todos_list: Vec<Todo>, args: Vec<String>) {
+fn remove_from_list(mut todos_list: Vec<Todo>, args: Vec<String>) -> Result<()> {
     match args.first() {
         Some(first) => {
             match first.as_str() {
@@ -141,8 +162,7 @@ fn remove_from_list(mut todos_list: Vec<Todo>, args: Vec<String>) {
                         match curr_root.get_mut(ind) {
                             Some(node) => curr_root = &mut node.sub_todos,
                             None => {
-                                eprintln!("Index out of bounds, could not remove todo");
-                                return;
+                                return Err(WhatodoError::IndexOutOfBounds);
                             }
                         }
                     }
@@ -152,26 +172,39 @@ fn remove_from_list(mut todos_list: Vec<Todo>, args: Vec<String>) {
                     match curr_root.get(index_to_remove) {
                         Some(_) => curr_root.remove(index_to_remove),
                         None => {
-                            eprintln!("Index out of bounds, could not remove todo");
-                            return;
+                            return Err(WhatodoError::IndexOutOfBounds);
                         }
                     };
 
-                    save_todos(todos_list);
+                    save_todos(todos_list)
                 }
             }
         }
-        None => help(),
+        None => {
+            help();
+            Err(WhatodoError::NotEnoughArguments)
+        }
     }
 }
 
-fn save_todos(todos_list: Vec<Todo>) {
-    let mut otf = File::create("todo.todos").unwrap();
+fn save_todos(todos_list: Vec<Todo>) -> Result<()> {
+    let mut otf = match File::create("todo.todos") {
+        Ok(file) => file,
+        Err(e) => {
+            return Err(WhatodoError::CannotSaveTodos(e));
+        }
+    };
 
     for todo in todos_list {
-        otf.write(format!("{}\n", todo.to_todos()).as_bytes())
-            .unwrap();
+        match otf.write(format!("{}\n", todo.to_todos()).as_bytes()) {
+            Ok(_) => (),
+            Err(e) => {
+                return Err(WhatodoError::CannotSaveTodos(e));
+            }
+        }
     }
+
+    Ok(())
 }
 
 fn help() {
@@ -211,7 +244,7 @@ fn main() {
 
     if let Some(command) = args.get(0) {
         match command.as_str() {
-            "init" => init_new_list().unwrap(),
+            "init" => init_new_list(),
             "add" => add_to_list(load_todos().unwrap(), args),
             "remove" => remove_from_list(load_todos().unwrap(), args[1..].to_owned()),
             "complete" => complete_todo(load_todos().unwrap(), args[1..].to_owned()),
@@ -222,8 +255,12 @@ fn main() {
                     None => "all",
                 },
             ),
-            _ => help(),
+            _ => {
+                help();
+                Err(WhatodoError::InvalidCommand)
+            }
         }
+        .unwrap()
     } else {
         help();
     }
